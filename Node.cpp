@@ -7,21 +7,21 @@ void Node::registerHandler(string messageType, MessageHandler *handler) {
 static void* timeout(void* ctx) {
 	Node *t = (Node*) ctx;
 	typedef map<string, Waiting>::iterator it_type;
-	map<string, Waiting> m = t->getWaiting();
+	map<string, Waiting> *m = t->getWaiting();
 
-	while (m.size() > 0) {
+	while (m->size() > 0) {
 		long time = getTimeMsec();
 
-		map<string, Waiting>::iterator it = m.begin();
+		map<string, Waiting>::iterator it = m->begin();
 
-		while (it != m.end()) {
+		while (it != m->end()) {
 			if (it->second.expireTime < time) {
 				FILE_LOG(logDEBUG) << "timeout: " << it->first;
 
-				m.erase(it++);  // Use iterator.
-								// Note the post increment.
-								// Increments the iterator but returns the
-								// original value for use by erase
+				m->erase(it++);  // Use iterator.
+								 // Note the post increment.
+								 // Increments the iterator but returns the
+								 // original value for use by erase
 			} else {
 				++it;
 
@@ -121,9 +121,9 @@ void Node::receive(string msg) {
 	snappy::Uncompress(msg.data(), msg.size(), &decompressed);
 	dmessage.ParseFromString(decompressed);
 
-// protobuf "magic", get inner class implementation
+	// protobuf "magic", get inner class implementation:
 
-// first find the inner message's descriptor
+	// first find the inner message's descriptor
 	const google::protobuf::Descriptor *d =
 			dmessage.descriptor()->file()->pool()->FindMessageTypeByName(
 					dmessage.type());
@@ -133,7 +133,7 @@ void Node::receive(string msg) {
 		return;
 	}
 
-// now find the inner message's prototype
+	// now find the inner message's prototype
 	const google::protobuf::Message *innerMsgProto =
 			::google::protobuf::MessageFactory::generated_factory()->GetPrototype(
 					d);
@@ -143,30 +143,31 @@ void Node::receive(string msg) {
 		return;
 	}
 
-// now construct new instance and parse inner message
+	// now construct new instance and parse inner message
 	google::protobuf::Message *innerMsg = innerMsgProto->New();
 
-// finally, parse the inner message
+	// finally, parse the inner message
 	innerMsg->ParseFromString(dmessage.message_data());
 
-// check wether we have been waiting for this message
+	// check wether we have been waiting for this message
 	if (waiting.find(dmessage.inresponseto()) != waiting.end()) {
-
-		FILE_LOG(logDEBUG) << serverSocketName << " got response: "
-				<< dmessage.type();
 		waiting[dmessage.inresponseto()].handler->response(this, innerMsg,
 				dmessage.inresponseto());
+		waiting.erase(dmessage.inresponseto());
 		return;
 	}
 
-// look into handlers map to find suitable handler
+	// look into handlers map to find suitable handler
 	if (handlers.find(dmessage.type()) != handlers.end()) {
 		MessageHandler *handler = handlers[dmessage.type()];
 		handler->handle(this, innerMsg, dmessage.id());
-	} else {
-		FILE_LOG(logERROR) << serverSocketName << " unhandled message: "
-				<< dmessage.type();
+		return;
 	}
+
+	// if we still did not do anything
+	FILE_LOG(logERROR) << serverSocketName << " unhandled message: "
+			<< dmessage.type();
+
 }
 
 string Node::createMessageId() {
@@ -201,8 +202,8 @@ string Node::getSocket() {
 	return serverSocketName;
 }
 
-map<string, Waiting> Node::getWaiting() {
-	return waiting;
+map<string, Waiting>* Node::getWaiting() {
+	return &waiting;
 }
 
 sbp0i::TreeNode * Node::getTree() {

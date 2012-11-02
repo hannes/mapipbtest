@@ -68,7 +68,7 @@ public:
 
 	zmq::context_t* getContext();
 	sbp0i::TreeNode* getTree();
-	map<string, Waiting> getWaiting();
+	map<string, Waiting>* getWaiting();
 	const sbp0i::TreeNode* findNode(string prefix);
 
 	~Node();

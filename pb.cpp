@@ -28,7 +28,7 @@ public:
 				<< m->origin() << " id:" << id;
 		sbp0i::Hello resp;
 		resp.set_origin(node->getSocket());
-		//node->send(m->origin(), &resp, node->createMessageId(), id);
+		node->send(m->origin(), &resp, node->createMessageId(), id);
 	}
 };
 
@@ -63,7 +63,7 @@ class HelloRespHandler: public ResponseHandler {
 public:
 	void response(Node *node, google::protobuf::Message *msg,
 			string inResponseTo) {
-		FILE_LOG(logDEBUG) << "response";
+		FILE_LOG(logDEBUG) << "response to " << inResponseTo;
 	}
 	void timeout(Node *node, string inResponseTo) {
 		FILE_LOG(logDEBUG) << "timeout";
@@ -89,25 +89,24 @@ void testsetup() {
 	h.set_origin(n1.getSocket());
 	n1.sendR(n2.getSocket(), &h, hrh, 1000);
 
-
 	/*
-	StoreColumnDataHandler *scdhandler = new StoreColumnDataHandler();
+	 StoreColumnDataHandler *scdhandler = new StoreColumnDataHandler();
 
-	n1.registerHandler("sbp0i.StoreColumnData", scdhandler);
-	n2.registerHandler("sbp0i.StoreColumnData", scdhandler);
+	 n1.registerHandler("sbp0i.StoreColumnData", scdhandler);
+	 n2.registerHandler("sbp0i.StoreColumnData", scdhandler);
 
-	TpcFile data = TpcFile("tpc-h-0.01/region.tbl");
-	data.parse();
+	 TpcFile data = TpcFile("tpc-h-0.01/region.tbl");
+	 data.parse();
 
-	sbp0i::TreeNode* newChild = n1.getTree()->add_children();
-	newChild->set_node(n2.getSocket());
-	newChild->set_prefix("/region/r_regionkey/");
+	 sbp0i::TreeNode* newChild = n1.getTree()->add_children();
+	 newChild->set_node(n2.getSocket());
+	 newChild->set_prefix("/region/r_regionkey/");
 
-	for (vector<int>::size_type i = 0; i != data.getData().size(); i++) {
-		n1.send("inproc://foo1", &data.getData()[i]);
-	}
-*/
-	sleep(5);
+	 for (vector<int>::size_type i = 0; i != data.getData().size(); i++) {
+	 n1.send("inproc://foo1", &data.getData()[i]);
+	 }
+	 */
+	sleep(1);
 
 	pthread_exit(0);
 }
