@@ -1,11 +1,35 @@
 #include "Node.hpp"
 
+static void* poll(void* ctx) {
+	Node *t = (Node*) ctx;
+
+	zmq::socket_t newSocket(*t->getContext(), ZMQ_PULL);
+	newSocket.bind(t->getSocket().data());
+
+	while (true) {
+		zmq::message_t request;
+		try {
+			newSocket.recv(&request);
+
+			string message = string(static_cast<char*>(request.data()),
+					request.size());
+			t->receive(message);
+		} catch (zmq::error_t &e) {
+			FILE_LOG(logERROR) << "poll: " << e.what();
+			break;
+		}
+
+	}
+	return (NULL);
+}
+
 void Node::listen(string anAddress) {
 	FILE_LOG(logDEBUG) << "listening on: " << anAddress;
 
 	serverSocketName = anAddress;
 	pthread_create(&pollert, NULL, poll, &this[0]);
 }
+
 bool Node::send(string anAddress, google::protobuf::Message *msg) {
 	sbp0i::SelfDescribingMessage wrappedMsg;
 	wrappedMsg.set_type(msg->GetDescriptor()->name());
@@ -175,31 +199,8 @@ Node::~Node() {
 		try {
 			iterator->second->~socket_t();
 		} catch (zmq::error_t &e) {
-			FILE_LOG(logERROR) << "destruct" << e.what();
+			FILE_LOG(logERROR) << "destruct: " << e.what();
 		}
 	}
-}
-
-static void* poll(void* ctx) {
-	Node *t = (Node*) ctx;
-
-	zmq::socket_t newSocket(*t->getContext(), ZMQ_PULL);
-	newSocket.bind(t->getSocket().data());
-
-	while (true) {
-		zmq::message_t request;
-		try {
-			newSocket.recv(&request);
-
-			string message = string(static_cast<char*>(request.data()),
-					request.size());
-			t->receive(message);
-		} catch (zmq::error_t &e) {
-			FILE_LOG(logERROR) << "poll: " << e.what();
-			break;
-		}
-
-	}
-	return (NULL);
 }
 

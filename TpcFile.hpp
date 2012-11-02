@@ -21,5 +21,3 @@ private:
 	vector<sbp0i::StoreColumnData> columndata;
 }
 ;
-
-static TpcFile::schema_t createSchema();

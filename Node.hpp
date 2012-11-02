@@ -7,7 +7,6 @@
 #include <vector>
 #include <map>
 
-
 #include <google/protobuf/descriptor.h>
 #include "protobuf/messages.pb.h"
 #include "lib/log.h"
@@ -21,6 +20,8 @@ class Node {
 public:
 	Node(zmq::context_t *aContext) {
 		context = aContext;
+		// assign to prevent compiler warning
+		pollert = -1;
 	}
 	void listen(string anAddress);
 	void sayHi(string anAddress);
@@ -48,5 +49,3 @@ private:
 	vector<string> lingeringNodes;
 	sbp0i::TreeNode prefixTree;
 };
-
-static void* poll(void* ctx);

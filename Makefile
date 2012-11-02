@@ -1,7 +1,7 @@
 CC      = g++
 PROTOC  = protoc
 
-CFLAGS  = -I. -I${CPLUS_INCLUDE_PATH}
+CFLAGS  = -I. -I${CPLUS_INCLUDE_PATH} -Wall
 LDFLAGS = -L/export/scratch1/usr/lib -lprotobuf -lsnappy -lzmq -lpthread
 
 GENDIR = ./protobuf

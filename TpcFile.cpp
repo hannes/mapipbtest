@@ -12,72 +12,6 @@ vector<sbp0i::StoreColumnData> TpcFile::getData() {
 	return columndata;
 }
 
-void TpcFile::parse() {
-	schema_t schema = createSchema();
-
-	// find out which table we are dealing with
-	string tpctablefile = string(basename((char*) filename.data()));
-	string tpctable = tpctablefile.substr(0, tpctablefile.length() - 4);
-
-	if (schema.find(tpctable) == schema.end()) {
-		cerr << "No schema definition for " << filename << endl;
-	}
-
-	ifstream file(filename.data());
-
-	string value;
-	int row = 0;
-	string prefix = genRndStr(10);
-
-	for (vector<string>::size_type i = 0; i != schema[tpctable].size(); i++) {
-		sbp0i::StoreColumnData col;
-		col.set_column(schema[tpctable][i]);
-		col.set_relation(tpctable);
-		columndata.push_back(col);
-	}
-
-	while (file.good()) {
-		getline(file, value, '\n');
-		stringstream ss(value);
-		string item;
-		vector<string> elems;
-
-		while (getline(ss, item, '|')) {
-			elems.push_back(item);
-		}
-
-		if (elems.size() > 0) {
-			string rowid = prefix + "." + intToStr(row);
-			for (vector<int>::size_type i = 0; i != elems.size(); i++) {
-				sbp0i::StoreColumnData::ColumnEntry* entry =
-						columndata[i].add_entries();
-				entry->set_rowid(rowid);
-				entry->set_value(elems[i]);
-			}
-			row++;
-		}
-	}
-}
-
-void TpcFile::print() {
-	for (vector<sbp0i::StoreColumnData>::size_type i = 0;
-			i != columndata.size(); i++) {
-		sbp0i::StoreColumnData col = columndata[i];
-		cout << "Relation:  " << col.relation() << " Column: " << col.column();
-		cout << endl;
-
-		for (int j = 0; j < col.entries_size(); j++) {
-			const sbp0i::StoreColumnData::ColumnEntry& entry = col.entries(j);
-			cout << entry.rowid() << "=" << entry.value() << endl;
-		}
-		cout << endl;
-	}
-}
-
-long TpcFile::size() {
-	return columndata[0].entries_size();
-}
-
 // Highly boring...
 static TpcFile::schema_t createSchema() {
 	TpcFile::schema_t schema;
@@ -169,5 +103,71 @@ static TpcFile::schema_t createSchema() {
 	schema["supplier"] = supplierFields;
 
 	return schema;
+}
+
+void TpcFile::parse() {
+	schema_t schema = createSchema();
+
+	// find out which table we are dealing with
+	string tpctablefile = string(basename((char*) filename.data()));
+	string tpctable = tpctablefile.substr(0, tpctablefile.length() - 4);
+
+	if (schema.find(tpctable) == schema.end()) {
+		cerr << "No schema definition for " << filename << endl;
+	}
+
+	ifstream file(filename.data());
+
+	string value;
+	int row = 0;
+	string prefix = genRndStr(10);
+
+	for (vector<string>::size_type i = 0; i != schema[tpctable].size(); i++) {
+		sbp0i::StoreColumnData col;
+		col.set_column(schema[tpctable][i]);
+		col.set_relation(tpctable);
+		columndata.push_back(col);
+	}
+
+	while (file.good()) {
+		getline(file, value, '\n');
+		stringstream ss(value);
+		string item;
+		vector<string> elems;
+
+		while (getline(ss, item, '|')) {
+			elems.push_back(item);
+		}
+
+		if (elems.size() > 0) {
+			string rowid = prefix + "." + intToStr(row);
+			for (vector<int>::size_type i = 0; i != elems.size(); i++) {
+				sbp0i::StoreColumnData::ColumnEntry* entry =
+						columndata[i].add_entries();
+				entry->set_rowid(rowid);
+				entry->set_value(elems[i]);
+			}
+			row++;
+		}
+	}
+}
+
+void TpcFile::print() {
+	for (vector<sbp0i::StoreColumnData>::size_type i = 0;
+			i != columndata.size(); i++) {
+		sbp0i::StoreColumnData col = columndata[i];
+		cout << "Relation:  " << col.relation() << " Column: " << col.column();
+		cout << endl;
+
+		for (int j = 0; j < col.entries_size(); j++) {
+			const sbp0i::StoreColumnData::ColumnEntry& entry = col.entries(j);
+			cout << entry.rowid() << "=" << entry.value() << endl;
+		}
+		cout << endl;
+	}
+}
+
+long TpcFile::size() {
+	return columndata[0].entries_size();
 }
 
