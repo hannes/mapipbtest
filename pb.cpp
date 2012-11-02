@@ -63,7 +63,7 @@ public:
 		// am I responsible for storing?
 		if (mtch->node() == node->getSocket()) {
 			FILE_LOG(logDEBUG) << node->getSocket()
-					<< " storing data for prefix " << prefix << " locally";
+					<< " storing data for prefix " << prefix;
 			node->store(m);
 			// TODO: store
 			return;
@@ -201,7 +201,7 @@ void testWrite() {
 
 	// now lets get sth back
 
-	sleep(1);
+	//sleep(1);
 
 	sbp0i::LoadColumnData load1;
 	load1.set_relation("region");
@@ -217,6 +217,8 @@ void testWrite() {
 }
 
 int main(int argc, char* argv[]) {
+	srand(time(NULL));
+
 // Verify that the version of the library that we linked against is
 // compatible with the version of the headers we compiled against.
 	GOOGLE_PROTOBUF_VERIFY_VERSION;

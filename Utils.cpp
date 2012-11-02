@@ -7,11 +7,11 @@ string intToStr(int number) {
 }
 
 static const char alphanum[] = "0123456789"
-		"!@#$%^&*"
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 		"abcdefghijklmnopqrstuvwxyz";
 
 static const int stringLength = sizeof(alphanum) - 1;
+
 
 char genRandom() {
 	return alphanum[rand() % stringLength];
