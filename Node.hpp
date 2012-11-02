@@ -8,6 +8,8 @@
 #include <map>
 
 #include <google/protobuf/descriptor.h>
+#include <google/protobuf/message.h>
+
 #include "protobuf/messages.pb.h"
 #include "lib/log.h"
 #include "lib/zmq.hpp"
@@ -15,37 +17,75 @@
 
 using namespace std;
 
+// No comment on this
+class Node;
+typedef google::protobuf::Message Msg;
+
+class MessageHandler {
+public:
+	virtual void handle(Node *node, google::protobuf::Message *msg,
+			string id) = 0;
+};
+
+class ResponseHandler {
+public:
+	virtual void response(Node *node, google::protobuf::Message *msg,
+			string inResponseTo) = 0;
+	virtual void timeout(Node *node, string inResponseTo) = 0;
+};
+
+class Waiting {
+public:
+	long expireTime;
+	ResponseHandler *handler;
+};
+
 class Node {
 
 public:
 	Node(zmq::context_t *aContext) {
 		context = aContext;
 		// assign to prevent compiler warning
-		pollert = -1;
+		pollert = 0;
+		timeoutt = 0;
 	}
 	void listen(string anAddress);
-	void sayHi(string anAddress);
-
 	void receive(string msg);
-	bool send(string anAddress, google::protobuf::Message *msg);
+
+	// Fire & Forget
+	bool send(string anAddress, Msg *msg);
+	bool send(string anAddress, Msg *msg, string id);
+	bool send(string anAddress, Msg *msg, string id, string inResponseTo);
+
+	// Require a Response
+	bool sendR(string anAddress, Msg *msg, ResponseHandler *respHandler,
+			int timeoutMsecs);
+
+	void registerHandler(string messageType, MessageHandler *handler);
+
 	string getSocket();
+	string createMessageId();
+
 	zmq::context_t* getContext();
 	sbp0i::TreeNode* getTree();
+	map<string, Waiting> getWaiting();
+	const sbp0i::TreeNode* findNode(string prefix);
 
 	~Node();
 
 private:
-	void hStoreColumnData(sbp0i::StoreColumnData);
-	void hStillePost(sbp0i::StillePost m);
-	void hDummyMessage(sbp0i::DummyMessage m);
-	void hHello(sbp0i::Hello m);
-	string getPrefix(sbp0i::StoreColumnData m);
 	const sbp0i::TreeNode* findNode(const sbp0i::TreeNode *n, string prefix);
 
 	pthread_t pollert;
+	pthread_t timeoutt;
+
 	zmq::context_t *context;
 	string serverSocketName;
 	map<string, zmq::socket_t*> sendSockets;
 	vector<string> lingeringNodes;
 	sbp0i::TreeNode prefixTree;
+	map<string, MessageHandler*> handlers;
+	map<string, Waiting> waiting;
+
 };
+

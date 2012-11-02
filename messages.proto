@@ -1,20 +1,5 @@
 package sbp0i;
 
-message DummyMessage {
-	required string name = 1;
-	required int32 id = 2;
-	optional string target = 3;
-	optional string origin = 4;
-}
-
-message StillePost {
-	required string text = 1;
-	required int32 pos = 2;
-	required string proto = 3;
-	required int32 max = 4;
-	required int32 hops = 5;
-}
-
 message Hello {
 	required string origin = 1;
 }
@@ -39,4 +24,10 @@ message StoreColumnData {
 message SelfDescribingMessage {
 	required string type = 1;
 	required bytes message_data = 2;
+	optional string id = 3;
+	optional string inResponseTo = 4;
+}
+
+message ResourceRequest {
+	required string origin = 1;
 }

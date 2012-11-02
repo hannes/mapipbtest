@@ -1,5 +1,53 @@
 #include "Node.hpp"
 
+void Node::registerHandler(string messageType, MessageHandler *handler) {
+	handlers[messageType] = handler;
+}
+
+static void* timeout(void* ctx) {
+	Node *t = (Node*) ctx;
+	typedef map<string, Waiting>::iterator it_type;
+	map<string, Waiting> m = t->getWaiting();
+
+	while (m.size() > 0) {
+		long time = getTimeMsec();
+
+		map<string, Waiting>::iterator it = m.begin();
+
+		while (it != m.end()) {
+			if (it->second.expireTime < time) {
+				FILE_LOG(logDEBUG) << "timeout: " << it->first;
+
+				m.erase(it++);  // Use iterator.
+								// Note the post increment.
+								// Increments the iterator but returns the
+								// original value for use by erase
+			} else {
+				++it;
+
+			}
+		}
+		usleep(10000); // microseconds
+	}
+	return (NULL);
+}
+
+bool Node::sendR(string anAddress, google::protobuf::Message *msg,
+		ResponseHandler *respHandler, int timeoutMsecs) {
+	Waiting w;
+
+	if (!timeoutt) {
+		pthread_create(&timeoutt, NULL, timeout, &this[0]);
+	}
+
+	w.expireTime = getTimeMsec() + timeoutMsecs;
+	w.handler = respHandler;
+	string id = createMessageId();
+	waiting[id] = w;
+
+	return send(anAddress, msg, id);
+}
+
 static void* poll(void* ctx) {
 	Node *t = (Node*) ctx;
 
@@ -31,9 +79,20 @@ void Node::listen(string anAddress) {
 }
 
 bool Node::send(string anAddress, google::protobuf::Message *msg) {
+	return send(anAddress, msg, createMessageId(), "");
+}
+
+bool Node::send(string anAddress, google::protobuf::Message *msg, string id) {
+	return send(anAddress, msg, id, "");
+}
+
+bool Node::send(string anAddress, google::protobuf::Message *msg, string id,
+		string inResponseTo) {
 	sbp0i::SelfDescribingMessage wrappedMsg;
-	wrappedMsg.set_type(msg->GetDescriptor()->name());
+	wrappedMsg.set_type(msg->GetDescriptor()->full_name());
 	wrappedMsg.set_message_data(msg->SerializeAsString());
+	wrappedMsg.set_inresponseto(inResponseTo);
+	wrappedMsg.set_id(id);
 
 	try {
 		if (sendSockets.find(anAddress) == sendSockets.end()) {
@@ -56,108 +115,66 @@ bool Node::send(string anAddress, google::protobuf::Message *msg) {
 	return false;
 }
 
-void Node::sayHi(string anAddress) {
-	sbp0i::Hello h;
-	h.set_origin(getSocket());
-	send(anAddress, &h);
-}
-
 void Node::receive(string msg) {
 	sbp0i::SelfDescribingMessage dmessage;
 	string decompressed;
 	snappy::Uncompress(msg.data(), msg.size(), &decompressed);
 	dmessage.ParseFromString(decompressed);
 
-	bool handled = false;
+// protobuf "magic", get inner class implementation
 
-	// setup
-	if (dmessage.type() == "Hello") {
-		sbp0i::Hello m;
-		m.ParseFromString(dmessage.message_data());
-		hHello(m);
-		handled = true;
-	}
-
-	// store
-	if (dmessage.type() == "StoreColumnData") {
-		sbp0i::StoreColumnData m;
-		m.ParseFromString(dmessage.message_data());
-		hStoreColumnData(m);
-		handled = true;
-	}
-
-	// testing stuff
-	if (dmessage.type() == "DummyMessage") {
-		sbp0i::DummyMessage m;
-		m.ParseFromString(dmessage.message_data());
-		hDummyMessage(m);
-		handled = true;
-	}
-	if (dmessage.type() == "StillePost") {
-		sbp0i::StillePost m;
-		m.ParseFromString(dmessage.message_data());
-		hStillePost(m);
-		handled = true;
-	}
-
-	if (!handled) {
+// first find the inner message's descriptor
+	const google::protobuf::Descriptor *d =
+			dmessage.descriptor()->file()->pool()->FindMessageTypeByName(
+					dmessage.type());
+	if (!d) {
 		FILE_LOG(logERROR) << serverSocketName << " unknown message: "
+				<< dmessage.type();
+		return;
+	}
+
+// now find the inner message's prototype
+	const google::protobuf::Message *innerMsgProto =
+			::google::protobuf::MessageFactory::generated_factory()->GetPrototype(
+					d);
+	if (!innerMsgProto) {
+		FILE_LOG(logERROR) << serverSocketName << " unknown message: "
+				<< dmessage.type();
+		return;
+	}
+
+// now construct new instance and parse inner message
+	google::protobuf::Message *innerMsg = innerMsgProto->New();
+
+// finally, parse the inner message
+	innerMsg->ParseFromString(dmessage.message_data());
+
+// check wether we have been waiting for this message
+	if (waiting.find(dmessage.inresponseto()) != waiting.end()) {
+
+		FILE_LOG(logDEBUG) << serverSocketName << " got response: "
+				<< dmessage.type();
+		waiting[dmessage.inresponseto()].handler->response(this, innerMsg,
+				dmessage.inresponseto());
+		return;
+	}
+
+// look into handlers map to find suitable handler
+	if (handlers.find(dmessage.type()) != handlers.end()) {
+		MessageHandler *handler = handlers[dmessage.type()];
+		handler->handle(this, innerMsg, dmessage.id());
+	} else {
+		FILE_LOG(logERROR) << serverSocketName << " unhandled message: "
 				<< dmessage.type();
 	}
 }
 
-void Node::hHello(sbp0i::Hello m) {
-	FILE_LOG(logDEBUG) << serverSocketName << " got hello from: " << m.origin();
-	lingeringNodes.push_back(m.origin());\
-	// what to do with lingering nodes?
+string Node::createMessageId() {
+	return genRndStr(10);
 }
 
-void Node::hStoreColumnData(sbp0i::StoreColumnData m) {
-	FILE_LOG(logDEBUG) << serverSocketName << " got scd: " << getPrefix(m)
-			<< ", " << m.entries_size() << " entries";
-
-	// am I responsible for storing?
-
-	// // do I want to? do I have lingering nodes around?
-
-	const sbp0i::TreeNode *mtch = findNode(&prefixTree, getPrefix(m));
-	if (mtch != NULL) {
-		// forward message to that node!
-		FILE_LOG(logDEBUG) << "found prefix on node, going to " << mtch->node();
-		// OR: forward to next node in tree on the way to dest.
-		send(mtch->node(), &m);
-		return;
-	}
-	// damn, nobody is responsible yet. we could: assign a lingering node, and change the tree
-
-	// or we could forward to the next best node
-
-}
-
-string Node::getPrefix(sbp0i::StoreColumnData m) {
-	return "/" + m.relation() + "/" + m.column() + "/";
-}
-
-void Node::hStillePost(sbp0i::StillePost m) {
-	FILE_LOG(logDEBUG) << serverSocketName << " got sp: " << intToStr(m.hops());
-	m.set_pos(m.pos() + 1);
-	m.set_hops(m.hops() + 1);
-
-	if (m.pos() == m.max()) {
-		m.set_pos(0);
-	}
-	send(string(m.proto()) + intToStr(m.pos()), &m);
-}
-
-void Node::hDummyMessage(sbp0i::DummyMessage m) {
-	FILE_LOG(logDEBUG) << serverSocketName << " got dm: " << m.id();
-	if (m.has_target()) {
-		cerr << serverSocketName << " forwarding to: " << m.target();
-
-		string target = m.target();
-		m.clear_target();
-		send(target, &m);
-	}
+const sbp0i::TreeNode* Node::findNode(string prefix) {
+	return findNode(&prefixTree, prefix);
 }
 
 // recurse into tree
@@ -184,11 +201,15 @@ string Node::getSocket() {
 	return serverSocketName;
 }
 
-sbp0i::TreeNode* Node::getTree() {
+map<string, Waiting> Node::getWaiting() {
+	return waiting;
+}
+
+sbp0i::TreeNode * Node::getTree() {
 	return &prefixTree;
 }
 
-zmq::context_t* Node::getContext() {
+zmq::context_t * Node::getContext() {
 	return context;
 }
 
