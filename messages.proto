@@ -21,6 +21,13 @@ message StoreColumnData {
 	repeated ColumnEntry entries = 3;
 }
 
+message LoadColumnData {
+	required string origin = 1;
+	required string relation = 2;
+	required string column = 3;
+	optional string value = 4;
+}
+
 message SelfDescribingMessage {
 	required string type = 1;
 	required bytes message_data = 2;

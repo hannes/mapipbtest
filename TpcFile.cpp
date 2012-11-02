@@ -156,14 +156,7 @@ void TpcFile::print() {
 	for (vector<sbp0i::StoreColumnData>::size_type i = 0;
 			i != columndata.size(); i++) {
 		sbp0i::StoreColumnData col = columndata[i];
-		cout << "Relation:  " << col.relation() << " Column: " << col.column();
-		cout << endl;
-
-		for (int j = 0; j < col.entries_size(); j++) {
-			const sbp0i::StoreColumnData::ColumnEntry& entry = col.entries(j);
-			cout << entry.rowid() << "=" << entry.value() << endl;
-		}
-		cout << endl;
+		printColumn(&col);
 	}
 }
 

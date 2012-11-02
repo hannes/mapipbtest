@@ -16,15 +16,13 @@ static void* timeout(void* ctx) {
 
 		while (it != m->end()) {
 			if (it->second.expireTime < time) {
-				FILE_LOG(logDEBUG) << "timeout: " << it->first;
+				string key = it->first;
+				ResponseHandler *h = m->find(key)->second.handler;
+				m->erase(it++);
+				h->timeout(t, key);
 
-				m->erase(it++);  // Use iterator.
-								 // Note the post increment.
-								 // Increments the iterator but returns the
-								 // original value for use by erase
 			} else {
 				++it;
-
 			}
 		}
 		usleep(10000); // microseconds
@@ -34,11 +32,11 @@ static void* timeout(void* ctx) {
 
 bool Node::sendR(string anAddress, google::protobuf::Message *msg,
 		ResponseHandler *respHandler, int timeoutMsecs) {
-	Waiting w;
 
 	if (!timeoutt) {
 		pthread_create(&timeoutt, NULL, timeout, &this[0]);
 	}
+	Waiting w;
 
 	w.expireTime = getTimeMsec() + timeoutMsecs;
 	w.handler = respHandler;
@@ -53,6 +51,8 @@ static void* poll(void* ctx) {
 
 	zmq::socket_t newSocket(*t->getContext(), ZMQ_PULL);
 	newSocket.bind(t->getSocket().data());
+
+	FILE_LOG(logDEBUG) << t->getSocket() << " listening";
 
 	while (true) {
 		zmq::message_t request;
@@ -72,8 +72,6 @@ static void* poll(void* ctx) {
 }
 
 void Node::listen(string anAddress) {
-	FILE_LOG(logDEBUG) << "listening on: " << anAddress;
-
 	serverSocketName = anAddress;
 	pthread_create(&pollert, NULL, poll, &this[0]);
 }
@@ -86,6 +84,7 @@ bool Node::send(string anAddress, google::protobuf::Message *msg, string id) {
 	return send(anAddress, msg, id, "");
 }
 
+// TODO: local messages can be delivered directly
 bool Node::send(string anAddress, google::protobuf::Message *msg, string id,
 		string inResponseTo) {
 	sbp0i::SelfDescribingMessage wrappedMsg;
@@ -196,6 +195,60 @@ const sbp0i::TreeNode* Node::findNode(const sbp0i::TreeNode *root,
 		}
 	}
 	return NULL;
+}
+
+void Node::store(sbp0i::StoreColumnData *data) {
+	sbp0i::StoreColumnData *col = 0;
+	for (vector<sbp0i::StoreColumnData*>::size_type i = 0; i != nodeData.size();
+			i++) {
+		sbp0i::StoreColumnData* c = nodeData[i];
+		if (c->relation() == data->relation()
+				&& c->column() == data->column()) {
+			col = c;
+		}
+	}
+	if (col == 0) {
+		col = new sbp0i::StoreColumnData();
+		col->set_relation(data->relation());
+		col->set_column(data->column());
+		nodeData.push_back(col);
+		FILE_LOG(logDEBUG) << serverSocketName << " new local col: "
+				<< getPrefix(data);
+	}
+	for (int j = 0; j < data->entries_size(); j++) {
+		const sbp0i::StoreColumnData::ColumnEntry& entry = data->entries(j);
+		sbp0i::StoreColumnData::ColumnEntry* nentry = col->add_entries();
+
+		nentry->set_rowid(entry.rowid());
+		nentry->set_value(entry.value());
+	}
+	FILE_LOG(logDEBUG) << serverSocketName << " stored: " << getPrefix(data);
+}
+
+sbp0i::StoreColumnData Node::load(sbp0i::LoadColumnData *req) {
+	sbp0i::StoreColumnData *col = 0;
+	for (vector<sbp0i::StoreColumnData*>::size_type i = 0; i != nodeData.size();
+			i++) {
+		sbp0i::StoreColumnData *c = nodeData[i];
+		if (c->relation() == req->relation() && c->column() == req->column()) {
+			col = c;
+		}
+	}
+	sbp0i::StoreColumnData ret;
+	ret.set_relation(req->relation());
+	ret.set_column(req->column());
+	if (col != 0) {
+
+		for (int j = 0; j < col->entries_size(); j++) {
+			const sbp0i::StoreColumnData::ColumnEntry& entry = col->entries(j);
+			if (!req->has_value() || req->value() == entry.value()) {
+				sbp0i::StoreColumnData::ColumnEntry* nentry = ret.add_entries();
+				nentry->set_rowid(entry.rowid());
+				nentry->set_value(entry.value());
+			}
+		}
+	}
+	return ret;
 }
 
 string Node::getSocket() {

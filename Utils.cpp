@@ -29,8 +29,23 @@ string getPrefix(sbp0i::StoreColumnData *m) {
 	return "/" + m->relation() + "/" + m->column() + "/";
 }
 
+string getPrefix(sbp0i::LoadColumnData *m) {
+	return "/" + m->relation() + "/" + m->column() + "/";
+}
+
 long getTimeMsec() {
 	timeval curTime;
 	gettimeofday(&curTime, NULL);
 	return curTime.tv_sec * 1000 + curTime.tv_usec / 1000;
+}
+
+void printColumn(sbp0i::StoreColumnData *col) {
+	cout << "Relation:  " << col->relation() << " Column: " << col->column();
+	cout << endl;
+
+	for (int j = 0; j < col->entries_size(); j++) {
+		const sbp0i::StoreColumnData::ColumnEntry& entry = col->entries(j);
+		cout << entry.rowid() << "=" << entry.value() << endl;
+	}
+	cout << endl;
 }

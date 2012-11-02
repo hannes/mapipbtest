@@ -42,6 +42,8 @@ public:
 
 class Node {
 
+	// TODO: guard waiting map against concurrent access!
+
 public:
 	Node(zmq::context_t *aContext) {
 		context = aContext;
@@ -71,6 +73,10 @@ public:
 	map<string, Waiting>* getWaiting();
 	const sbp0i::TreeNode* findNode(string prefix);
 
+	void store(sbp0i::StoreColumnData *data);
+
+	sbp0i::StoreColumnData load(sbp0i::LoadColumnData *data);
+
 	~Node();
 
 private:
@@ -87,5 +93,6 @@ private:
 	map<string, MessageHandler*> handlers;
 	map<string, Waiting> waiting;
 
+	vector<sbp0i::StoreColumnData*> nodeData;
 };
 
