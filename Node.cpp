@@ -187,6 +187,28 @@ void Node::addRoutingEntry(string prefix, string node) {
 	sbp0i::RoutingTable_RoutingTableEntry* ne = routingTable.add_entries();
 	ne->set_prefix(prefix);
 	ne->set_node(node);
+	routingTable.set_version(routingTable.version() + 1);
+}
+
+map<string, string> Node::getRoutingTable() {
+	map<string, string> routingTableMap;
+	for (int j = 0; j < routingTable.entries_size(); j++) {
+		const sbp0i::RoutingTable_RoutingTableEntry& entry =
+				routingTable.entries(j);
+		routingTableMap[entry.prefix()] = entry.node();
+	}
+	return routingTableMap;
+}
+
+void Node::addLingeringNode(string node) {
+	// check if we already have this one
+	for (vector<string>::iterator it = lingeringNodes.begin();
+			it != lingeringNodes.end(); ++it) {
+		if (*it == node) {
+			return;
+		}
+	}
+	lingeringNodes.push_back(node);
 }
 
 void Node::store(sbp0i::StoreColumnData *data) {
@@ -204,8 +226,6 @@ void Node::store(sbp0i::StoreColumnData *data) {
 		col->set_relation(data->relation());
 		col->set_column(data->column());
 		nodeData.push_back(col);
-		FILE_LOG(logDEBUG) << serverSocketName << " new local col: "
-				<< getPrefix(data);
 	}
 	for (int j = 0; j < data->entries_size(); j++) {
 		const sbp0i::StoreColumnData::ColumnEntry& entry = data->entries(j);
@@ -214,7 +234,6 @@ void Node::store(sbp0i::StoreColumnData *data) {
 		nentry->set_rowid(entry.rowid());
 		nentry->set_value(entry.value());
 	}
-	FILE_LOG(logDEBUG) << serverSocketName << " stored: " << getPrefix(data);
 }
 
 sbp0i::StoreColumnData Node::load(sbp0i::LoadColumnData *req) {

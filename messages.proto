@@ -42,3 +42,8 @@ message SelfDescribingMessage {
 message ResourceRequest {
 	required string origin = 1;
 }
+
+message NewNode {
+	required string node = 1;
+	required bool forward = 2;
+}

@@ -179,6 +179,7 @@ void testWrite() {
 
 	n1.addRoutingEntry("/region/r_regionkey/", n2.getSocket());
 	n1.addRoutingEntry("/region/r_name/", n1.getSocket());
+
 	n2.addRoutingEntry("/region/r_regionkey/", n2.getSocket());
 	n2.addRoutingEntry("/region/r_name/", n1.getSocket());
 
@@ -203,13 +204,70 @@ void testWrite() {
 	pthread_exit(0);
 }
 
+class NewNodeHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+		sbp0i::NewNode *m = (sbp0i::NewNode*) msg;
+		// add node to local list
+		node->addLingeringNode(m->node());
+		FILE_LOG(logDEBUG) << node->getSocket() << " new lingering node "
+				<< m->node();
+		//
+		if (m->forward()) {
+			m->set_forward(false);
+			map<string, string> rt = node->getRoutingTable();
+			for (map<string, string>::iterator iterator = rt.begin();
+					iterator != rt.end(); iterator++) {
+				if (iterator->second != node->getSocket()) {
+					node->send(iterator->second, m);
+				}
+			}
+		}
+		return;
+
+	}
+}
+;
+
+void testBootstrap() {
+	zmq::context_t context(1);
+
+	NewNodeHandler *nnhandler = new NewNodeHandler();
+
+	Node n1(&context);
+	n1.listen("inproc://A");
+	n1.registerHandler("sbp0i.NewNode", nnhandler);
+
+	Node n2(&context);
+	n2.listen("inproc://B");
+	n2.registerHandler("sbp0i.NewNode", nnhandler);
+
+	Node n3(&context);
+	n3.listen("inproc://C");
+	n3.registerHandler("sbp0i.NewNode", nnhandler);
+
+	n1.addRoutingEntry("/one/", n1.getSocket());
+	n1.addRoutingEntry("/two/", n2.getSocket());
+	n2.addRoutingEntry("/one/", n1.getSocket());
+	n2.addRoutingEntry("/two/", n2.getSocket());
+
+	sbp0i::NewNode n;
+	n.set_node(n3.getSocket());
+	n.set_forward(true);
+	n3.send(n1.getSocket(), &n);
+
+	sleep(1);
+
+	pthread_exit(0);
+}
+
 int main(int argc, char* argv[]) {
 	srand(time(NULL));
 
 // Verify that the version of the library that we linked against is
 // compatible with the version of the headers we compiled against.
 	GOOGLE_PROTOBUF_VERIFY_VERSION;
-	testWrite();
+	testBootstrap();
 
 	exit(0);
 }

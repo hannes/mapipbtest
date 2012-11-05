@@ -72,6 +72,9 @@ public:
 	map<string, Waiting>* getWaiting();
 	string findNode(string prefix);
 	void addRoutingEntry(string prefix, string node);
+	map<string, string> getRoutingTable();
+
+	void addLingeringNode(string node);
 
 	void store(sbp0i::StoreColumnData *data);
 
