@@ -51,9 +51,9 @@ public:
 		sbp0i::StoreColumnData *m = (sbp0i::StoreColumnData*) msg;
 
 		string prefix = getPrefix(m);
-		const sbp0i::TreeNode *mtch = node->findNode(prefix);
+		string target = node->findNode(prefix);
 
-		if (!mtch) {
+		if (target == "") {
 			// damn, nobody is responsible yet. we could: assign a lingering node, and change the tree
 			FILE_LOG(logDEBUG) << node->getSocket()
 					<< " nobody responsible for prefix " << prefix;
@@ -61,7 +61,7 @@ public:
 		}
 
 		// am I responsible for storing?
-		if (mtch->node() == node->getSocket()) {
+		if (target == node->getSocket()) {
 			FILE_LOG(logDEBUG) << node->getSocket()
 					<< " storing data for prefix " << prefix;
 			node->store(m);
@@ -69,14 +69,13 @@ public:
 			return;
 		}
 
-		if (mtch != NULL) {
-			// forward messaged to that node!
-			FILE_LOG(logDEBUG) << node->getSocket() << " found prefix "
-					<< prefix << ", going to " << mtch->node();
-			// OR: forward to next node in tree on the way to dest.
-			node->send(mtch->node(), m);
-			return;
-		}
+		// forward messaged to that node!
+		FILE_LOG(logDEBUG) << node->getSocket()
+				<< " forwarding data for prefix " << prefix << " to " << target;
+		// OR: forward to next node in tree on the way to dest.
+		node->send(target, m);
+		return;
+
 	}
 };
 
@@ -86,9 +85,9 @@ public:
 		sbp0i::LoadColumnData *m = (sbp0i::LoadColumnData*) msg;
 
 		string prefix = getPrefix(m);
-		const sbp0i::TreeNode *mtch = node->findNode(prefix);
+		string target = node->findNode(prefix);
 
-		if (mtch == NULL) {
+		if (target == "") {
 			// no match, no data, return empty response
 			FILE_LOG(logDEBUG) << node->getSocket()
 					<< " no node found for prefix " << prefix;
@@ -96,7 +95,7 @@ public:
 		}
 
 		// do I have this?
-		if (mtch->node() == node->getSocket()) {
+		if (target == node->getSocket()) {
 			FILE_LOG(logDEBUG) << node->getSocket()
 					<< " loading data for prefix " << prefix;
 
@@ -111,10 +110,9 @@ public:
 
 		// forward messaged to that node!
 		FILE_LOG(logDEBUG) << node->getSocket()
-				<< " forwarding load for prefix " << prefix << " going to "
-				<< mtch->node();
+				<< " forwarding load for prefix " << prefix << " to " << target;
 		// OR: forward to next node in tree on the way to dest.
-		node->send(mtch->node(), m);
+		node->send(target, m);
 		return;
 	}
 
@@ -122,7 +120,8 @@ public:
 			string inResponseTo) {
 		sbp0i::StoreColumnData *m = (sbp0i::StoreColumnData*) msg;
 		FILE_LOG(logDEBUG) << node->getSocket() << " got response on "
-				<< inResponseTo;
+				<< inResponseTo << ", " << m->entries_size() << " entries.";
+
 		printColumn(m);
 	}
 	void timeout(Node *node, string inResponseTo) {
@@ -178,22 +177,10 @@ void testWrite() {
 	TpcFile data = TpcFile("tpc-h-0.01/region.tbl");
 	data.parse();
 
-	// TODO: convert tree to map and flood updates to other nodes
-	sbp0i::TreeNode* c1 = n1.getTree()->add_children();
-	c1->set_node(n2.getSocket());
-	c1->set_prefix("/region/r_regionkey/");
-
-	sbp0i::TreeNode* c2 = n1.getTree()->add_children();
-	c2->set_node(n1.getSocket());
-	c2->set_prefix("/region/r_name/");
-
-	sbp0i::TreeNode* c12 = n2.getTree()->add_children();
-	c12->set_node(n2.getSocket());
-	c12->set_prefix("/region/r_regionkey/");
-
-	sbp0i::TreeNode* c22 = n2.getTree()->add_children();
-	c22->set_node(n1.getSocket());
-	c22->set_prefix("/region/r_name/");
+	n1.addRoutingEntry("/region/r_regionkey/", n2.getSocket());
+	n1.addRoutingEntry("/region/r_name/", n1.getSocket());
+	n2.addRoutingEntry("/region/r_regionkey/", n2.getSocket());
+	n2.addRoutingEntry("/region/r_name/", n1.getSocket());
 
 	for (vector<int>::size_type i = 0; i != data.getData().size(); i++) {
 		n1.send("inproc://A", &data.getData()[i]);
@@ -201,7 +188,7 @@ void testWrite() {
 
 	// now lets get sth back
 
-	//sleep(1);
+	usleep(10);
 
 	sbp0i::LoadColumnData load1;
 	load1.set_relation("region");

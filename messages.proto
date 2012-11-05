@@ -4,10 +4,14 @@ message Hello {
 	required string origin = 1;
 }
 
-message TreeNode {
-	required string prefix = 1;
-	required string node = 2;
-	repeated TreeNode children = 3;
+message RoutingTable {
+	required int32 version = 1;
+	message RoutingTableEntry {
+		required string prefix = 1;
+		required string node = 2;
+	}
+
+	repeated RoutingTableEntry entries = 2;
 }
 
 message StoreColumnData {

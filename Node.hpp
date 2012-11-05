@@ -69,9 +69,9 @@ public:
 	string createMessageId();
 
 	zmq::context_t* getContext();
-	sbp0i::TreeNode* getTree();
 	map<string, Waiting>* getWaiting();
-	const sbp0i::TreeNode* findNode(string prefix);
+	string findNode(string prefix);
+	void addRoutingEntry(string prefix, string node);
 
 	void store(sbp0i::StoreColumnData *data);
 
@@ -80,8 +80,6 @@ public:
 	~Node();
 
 private:
-	const sbp0i::TreeNode* findNode(const sbp0i::TreeNode *n, string prefix);
-
 	pthread_t pollert;
 	pthread_t timeoutt;
 
@@ -89,7 +87,7 @@ private:
 	string serverSocketName;
 	map<string, zmq::socket_t*> sendSockets;
 	vector<string> lingeringNodes;
-	sbp0i::TreeNode prefixTree;
+	sbp0i::RoutingTable routingTable;
 	map<string, MessageHandler*> handlers;
 	map<string, Waiting> waiting;
 

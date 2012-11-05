@@ -173,28 +173,20 @@ string Node::createMessageId() {
 	return genRndStr(10);
 }
 
-const sbp0i::TreeNode* Node::findNode(string prefix) {
-	return findNode(&prefixTree, prefix);
-}
-
-// recurse into tree
-const sbp0i::TreeNode* Node::findNode(const sbp0i::TreeNode *root,
-		string prefix) {
-	if (root->prefix() == prefix) {
-		return root;
-	}
-
-	if (root->children_size() == 0) {
-		return NULL;
-	}
-
-	for (int j = 0; j < root->children_size(); j++) {
-		const sbp0i::TreeNode *mtch = findNode(&root->children(j), prefix);
-		if (mtch != NULL) {
-			return mtch;
+string Node::findNode(string prefix) {
+	for (int j = 0; j < routingTable.entries_size(); j++) {
+		const sbp0i::RoutingTable_RoutingTableEntry& entry =
+				routingTable.entries(j);
+		if (entry.prefix() == prefix) {
+			return entry.node();
 		}
 	}
-	return NULL;
+	return "";
+}
+void Node::addRoutingEntry(string prefix, string node) {
+	sbp0i::RoutingTable_RoutingTableEntry* ne = routingTable.add_entries();
+	ne->set_prefix(prefix);
+	ne->set_node(node);
 }
 
 void Node::store(sbp0i::StoreColumnData *data) {
@@ -257,10 +249,6 @@ string Node::getSocket() {
 
 map<string, Waiting>* Node::getWaiting() {
 	return &waiting;
-}
-
-sbp0i::TreeNode * Node::getTree() {
-	return &prefixTree;
 }
 
 zmq::context_t * Node::getContext() {
