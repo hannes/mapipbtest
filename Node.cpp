@@ -4,6 +4,17 @@ void Node::registerHandler(string messageType, MessageHandler *handler) {
 	handlers[messageType] = handler;
 }
 
+void Node::printRoutingTable() {
+	cout << endl;
+	cout << "Routing table for:  " << getSocket() << endl;
+
+	map<string, string> rt = getRoutingTable();
+	for (map<string, string>::iterator it = rt.begin(); it != rt.end(); it++) {
+		cout << it->first << "\t\t: " << it->second << endl;
+	}
+	cout << endl;
+}
+
 static void* timeout(void* ctx) {
 	Node *t = (Node*) ctx;
 	typedef map<string, Waiting>::iterator it_type;
@@ -200,6 +211,24 @@ map<string, string> Node::getRoutingTable() {
 	return routingTableMap;
 }
 
+sbp0i::RoutingTable* Node::getRoutingMessage() {
+	return &routingTable;
+}
+
+bool Node::isOverloaded() {
+	long mappings = 0;
+	for (vector<sbp0i::StoreColumnData*>::size_type i = 0; i < nodeData.size();
+			i++) {
+		sbp0i::StoreColumnData* c = nodeData[i];
+		mappings = +c->entries_size();
+	}
+	return (mappings > 100);
+	// TODO: storage or cpu load determine this!
+	// TODO: propose tree change, vote with other nodes?
+
+	//return false;
+}
+
 void Node::addLingeringNode(string node) {
 	// check if we already have this one
 	for (vector<string>::iterator it = lingeringNodes.begin();
@@ -209,6 +238,10 @@ void Node::addLingeringNode(string node) {
 		}
 	}
 	lingeringNodes.push_back(node);
+}
+
+vector<string>* Node::getLingeringNodes() {
+	return &lingeringNodes;
 }
 
 void Node::store(sbp0i::StoreColumnData *data) {

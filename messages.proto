@@ -23,6 +23,7 @@ message StoreColumnData {
 	}
 
 	repeated ColumnEntry entries = 3;
+	optional bool force = 4;
 }
 
 message LoadColumnData {

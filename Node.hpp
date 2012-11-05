@@ -73,8 +73,13 @@ public:
 	string findNode(string prefix);
 	void addRoutingEntry(string prefix, string node);
 	map<string, string> getRoutingTable();
+	sbp0i::RoutingTable* getRoutingMessage();
+	bool isOverloaded();
+
+	vector<string>* getLingeringNodes();
 
 	void addLingeringNode(string node);
+	void printRoutingTable();
 
 	void store(sbp0i::StoreColumnData *data);
 

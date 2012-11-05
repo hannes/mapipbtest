@@ -19,3 +19,5 @@ string getPrefix(sbp0i::LoadColumnData *m);
 
 long getTimeMsec();
 void printColumn(sbp0i::StoreColumnData *col);
+
+int samePrefixLength(string a, string b);

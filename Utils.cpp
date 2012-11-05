@@ -12,7 +12,6 @@ static const char alphanum[] = "0123456789"
 
 static const int stringLength = sizeof(alphanum) - 1;
 
-
 char genRandom() {
 	return alphanum[rand() % stringLength];
 }
@@ -49,3 +48,15 @@ void printColumn(sbp0i::StoreColumnData *col) {
 	}
 	cout << endl;
 }
+
+int samePrefixLength(string a, string b) {
+	unsigned int i = 0;
+	while (i < a.length() && i < b.length()) {
+		if (a[i] != b[i]) {
+			break;
+		}
+		i++;
+	}
+	return i;
+}
+

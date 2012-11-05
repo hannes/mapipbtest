@@ -45,40 +45,6 @@ public:
 	}
 };
 
-class StoreColumnDataHandler: public MessageHandler {
-public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
-		sbp0i::StoreColumnData *m = (sbp0i::StoreColumnData*) msg;
-
-		string prefix = getPrefix(m);
-		string target = node->findNode(prefix);
-
-		if (target == "") {
-			// damn, nobody is responsible yet. we could: assign a lingering node, and change the tree
-			FILE_LOG(logDEBUG) << node->getSocket()
-					<< " nobody responsible for prefix " << prefix;
-			return;
-		}
-
-		// am I responsible for storing?
-		if (target == node->getSocket()) {
-			FILE_LOG(logDEBUG) << node->getSocket()
-					<< " storing data for prefix " << prefix;
-			node->store(m);
-			// TODO: store
-			return;
-		}
-
-		// forward messaged to that node!
-		FILE_LOG(logDEBUG) << node->getSocket()
-				<< " forwarding data for prefix " << prefix << " to " << target;
-		// OR: forward to next node in tree on the way to dest.
-		node->send(target, m);
-		return;
-
-	}
-};
-
 class LoadColumnDataHandler: public MessageHandler, public ResponseHandler {
 public:
 	void handle(Node *node, google::protobuf::Message *msg, string id) {
@@ -154,55 +120,126 @@ void testResponse() {
 	pthread_exit(0);
 }
 
-void testWrite() {
+class StoreColumnDataHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+		sbp0i::StoreColumnData *m = (sbp0i::StoreColumnData*) msg;
 
-	zmq::context_t context(1);
+		string prefix = getPrefix(m);
+		string target = node->findNode(prefix);
 
-	Node n1(&context);
-	n1.listen("inproc://A");
+		bool setForce = false;
 
-	Node n2(&context);
-	n2.listen("inproc://B");
-	//sleep(1);
+		if (target == "" && !m->force()) {
+			// damn, nobody is responsible yet. we could: assign a lingering node, and change the tree
 
-	StoreColumnDataHandler *scdhandler = new StoreColumnDataHandler();
-	LoadColumnDataHandler *lcdhandler = new LoadColumnDataHandler();
+			// go to the node that is closest in the prefix tree
+			map<string, string> rt = node->getRoutingTable();
+			int maxOverlap = 1; // since prefixes start with /
+			string bestMatch = "";
+			for (map<string, string>::iterator iterator = rt.begin();
+					iterator != rt.end(); iterator++) {
+				int spl = samePrefixLength(prefix, iterator->first);
+				if (spl > maxOverlap) {
+					bestMatch = iterator->second;
+					maxOverlap = spl;
+				}
+			}
+			// if that is still nothing, we are responsible
+			if (bestMatch != "") {
+				target = bestMatch;
+				FILE_LOG(logDEBUG) << node->getSocket()
+						<< " nobody responsible for prefix " << prefix
+						<< ", going to next best match " << target;
+			} else {
+				target = node->getSocket();
+				FILE_LOG(logDEBUG) << node->getSocket()
+						<< " nobody responsible for prefix " << prefix
+						<< ", storing here";
+			}
+		}
 
-	n1.registerHandler("sbp0i.StoreColumnData", scdhandler);
-	n1.registerHandler("sbp0i.LoadColumnData", lcdhandler);
+		if (target == node->getSocket() && node->isOverloaded()) {
+			setForce = true;
+			FILE_LOG(logDEBUG) << node->getSocket() << " overloaded";
+			// if we have a lingering node, add it to rt, forward data there
+			if (node->getLingeringNodes()->size() > 0) {
+				target = node->getLingeringNodes()->back();
+				// TODO: check if ln is still alive...
+				node->getLingeringNodes()->pop_back();
+				FILE_LOG(logDEBUG) << node->getSocket() << " forwarding "
+						<< prefix << " to lingering node " << target;
 
-	n2.registerHandler("sbp0i.StoreColumnData", scdhandler);
-	n2.registerHandler("sbp0i.LoadColumnData", lcdhandler);
+			} else {
+				// are there other nodes? forward there
+				map<string, string> rt = node->getRoutingTable();
+				for (map<string, string>::iterator iterator = rt.begin();
+						iterator != rt.end(); iterator++) {
+					if (iterator->second != node->getSocket()) {
+						target = iterator->second;
+						FILE_LOG(logDEBUG) << node->getSocket()
+								<< " forwarding " << prefix << " to "
+								<< iterator->second << " out of desperation";
+					}
+				}
+			}
 
-	TpcFile data = TpcFile("tpc-h-0.01/region.tbl");
-	data.parse();
+			// if not, store here anyway (no action required)
+		}
 
-	n1.addRoutingEntry("/region/r_regionkey/", n2.getSocket());
-	n1.addRoutingEntry("/region/r_name/", n1.getSocket());
+		// am I responsible for storing?
+		if (target == node->getSocket() || m->force()) {
+			FILE_LOG(logDEBUG) << node->getSocket()
+					<< " storing data for prefix " << prefix;
+			node->store(m);
 
-	n2.addRoutingEntry("/region/r_regionkey/", n2.getSocket());
-	n2.addRoutingEntry("/region/r_name/", n1.getSocket());
+			// check if this decision is reflected in the current routing table
+			string rt = node->findNode(prefix);
+			if (rt == "") {
+				node->addRoutingEntry(prefix, node->getSocket());
+				FILE_LOG(logDEBUG) << node->getSocket() << " now responsible for prefix "
+						<< prefix;
+				// do paxos for update, later
+				// TODO: deal with code replication here
+				// TODO: ln does not yet know it is responsible, maybe add force flag to message
+				map<string, string> rt = node->getRoutingTable();
+				for (map<string, string>::iterator iterator = rt.begin();
+						iterator != rt.end(); iterator++) {
+					if (iterator->second != node->getSocket()) {
+						node->send(iterator->second, node->getRoutingMessage());
+					}
+				}
+			}
+			return;
 
-	for (vector<int>::size_type i = 0; i != data.getData().size(); i++) {
-		n1.send("inproc://A", &data.getData()[i]);
+		}
+
+		m->set_force(setForce);
+
+		// forward messaged to that node!
+		FILE_LOG(logDEBUG) << node->getSocket()
+				<< " forwarding data for prefix " << prefix << " to " << target;
+		// OR: forward to next node in tree on the way to dest.
+		node->send(target, m);
+		return;
+
 	}
+};
 
-	// now lets get sth back
+class RoutingTableHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+		sbp0i::RoutingTable *m = (sbp0i::RoutingTable*) msg;
 
-	usleep(10);
+		FILE_LOG(logDEBUG) << node->getSocket()
+				<< " installing new routing table";
+		for (int j = 0; j < m->entries_size(); j++) {
+			const sbp0i::RoutingTable_RoutingTableEntry& entry = m->entries(j);
+			node->addRoutingEntry(entry.prefix(), entry.node());
+		}
 
-	sbp0i::LoadColumnData load1;
-	load1.set_relation("region");
-	load1.set_column("r_regionkey");
-	load1.set_value("1");
-	load1.set_origin(n1.getSocket());
-
-	n1.sendR("inproc://B", &load1, lcdhandler, 1000);
-
-	sleep(1);
-
-	pthread_exit(0);
-}
+	}
+};
 
 class NewNodeHandler: public MessageHandler {
 public:
@@ -224,7 +261,6 @@ public:
 			}
 		}
 		return;
-
 	}
 }
 ;
@@ -233,30 +269,70 @@ void testBootstrap() {
 	zmq::context_t context(1);
 
 	NewNodeHandler *nnhandler = new NewNodeHandler();
+	StoreColumnDataHandler *scdhandler = new StoreColumnDataHandler();
+	LoadColumnDataHandler *lcdhandler = new LoadColumnDataHandler();
+	RoutingTableHandler *rthandler = new RoutingTableHandler();
 
 	Node n1(&context);
 	n1.listen("inproc://A");
 	n1.registerHandler("sbp0i.NewNode", nnhandler);
+	n1.registerHandler("sbp0i.StoreColumnData", scdhandler);
+	n1.registerHandler("sbp0i.LoadColumnData", lcdhandler);
+	n1.registerHandler("sbp0i.RoutingTable", rthandler);
 
 	Node n2(&context);
 	n2.listen("inproc://B");
 	n2.registerHandler("sbp0i.NewNode", nnhandler);
+	n2.registerHandler("sbp0i.StoreColumnData", scdhandler);
+	n2.registerHandler("sbp0i.LoadColumnData", lcdhandler);
+	n2.registerHandler("sbp0i.RoutingTable", rthandler);
 
 	Node n3(&context);
 	n3.listen("inproc://C");
 	n3.registerHandler("sbp0i.NewNode", nnhandler);
+	n3.registerHandler("sbp0i.StoreColumnData", scdhandler);
+	n3.registerHandler("sbp0i.LoadColumnData", lcdhandler);
+	n3.registerHandler("sbp0i.RoutingTable", rthandler);
 
-	n1.addRoutingEntry("/one/", n1.getSocket());
-	n1.addRoutingEntry("/two/", n2.getSocket());
-	n2.addRoutingEntry("/one/", n1.getSocket());
-	n2.addRoutingEntry("/two/", n2.getSocket());
+	usleep(10);
 
-	sbp0i::NewNode n;
-	n.set_node(n3.getSocket());
-	n.set_forward(true);
-	n3.send(n1.getSocket(), &n);
+	sbp0i::NewNode nn2;
+	nn2.set_node(n2.getSocket());
+	nn2.set_forward(true);
+	n2.send(n1.getSocket(), &nn2);
+
+	sbp0i::NewNode nn3;
+	nn3.set_node(n3.getSocket());
+	nn3.set_forward(true);
+	n3.send(n1.getSocket(), &nn3);
+
+	// now hammer n1 it with data
+	TpcFile data = TpcFile("tpc-h-0.01/customer.tbl");
+	data.parse();
+
+	for (vector<int>::size_type i = 0; i != data.getData().size(); i++) {
+		n1.send("inproc://A", &data.getData()[i]);
+	}
+
+	usleep(10);
+
+	sbp0i::LoadColumnData load1;
+	load1.set_relation("customer");
+	load1.set_column("c_custkey");
+	load1.set_value("1");
+	load1.set_origin(n3.getSocket());
+
+	n3.sendR("inproc://A", &load1, lcdhandler, 1000);
 
 	sleep(1);
+
+	n1.printRoutingTable();
+	n2.printRoutingTable();
+	n3.printRoutingTable();
+
+	// until some limit is tripped, and n1 decides to extend the routing table, using lingering nodes
+
+	// now continue to hammer, until n3 is also used
 
 	pthread_exit(0);
 }
