@@ -171,7 +171,8 @@ public:
 						<< prefix << " to lingering node " << target;
 
 			} else {
-				// are there other nodes? forward there
+				// are there other nodes? forward there, they may be less loaded
+				// TODO: BUG: this gets not called yet
 				map<string, string> rt = node->getRoutingTable();
 				for (map<string, string>::iterator iterator = rt.begin();
 						iterator != rt.end(); iterator++) {
@@ -183,7 +184,6 @@ public:
 					}
 				}
 			}
-
 			// if not, store here anyway (no action required)
 		}
 
@@ -197,11 +197,9 @@ public:
 			string rt = node->findNode(prefix);
 			if (rt == "") {
 				node->addRoutingEntry(prefix, node->getSocket());
-				FILE_LOG(logDEBUG) << node->getSocket() << " now responsible for prefix "
-						<< prefix;
-				// do paxos for update, later
-				// TODO: deal with code replication here
-				// TODO: ln does not yet know it is responsible, maybe add force flag to message
+				FILE_LOG(logDEBUG) << node->getSocket()
+						<< " now responsible for prefix " << prefix;
+				// TODO: paxos for update, later
 				map<string, string> rt = node->getRoutingTable();
 				for (map<string, string>::iterator iterator = rt.begin();
 						iterator != rt.end(); iterator++) {
@@ -307,7 +305,7 @@ void testBootstrap() {
 	n3.send(n1.getSocket(), &nn3);
 
 	// now hammer n1 it with data
-	TpcFile data = TpcFile("tpc-h-0.01/customer.tbl");
+	TpcFile data = TpcFile("tpc-h-0.01/lineitem.tbl");
 	data.parse();
 
 	for (vector<int>::size_type i = 0; i != data.getData().size(); i++) {
@@ -317,14 +315,14 @@ void testBootstrap() {
 	usleep(10);
 
 	sbp0i::LoadColumnData load1;
-	load1.set_relation("customer");
-	load1.set_column("c_custkey");
-	load1.set_value("1");
+	load1.set_relation("lineitem");
+	load1.set_column("l_orderkey");
+	load1.set_value("42");
 	load1.set_origin(n3.getSocket());
 
 	n3.sendR("inproc://A", &load1, lcdhandler, 1000);
 
-	sleep(1);
+	usleep(1000);
 
 	n1.printRoutingTable();
 	n2.printRoutingTable();
@@ -337,13 +335,80 @@ void testBootstrap() {
 	pthread_exit(0);
 }
 
+class PaxosNode: public Node {
+public:
+	PaxosNode(zmq::context_t *aContext) :
+			Node(aContext) {
+	}
+	vector<string> acceptors;
+
+private:
+	unsigned int proposalNr;
+};
+
+class PrepareHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+
+	}
+}
+;
+
+class PromiseHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+
+	}
+}
+;
+
+class AcceptRequestHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+
+	}
+}
+;
+
+class AcceptHandler: public MessageHandler {
+public:
+	void handle(Node *node, google::protobuf::Message *msg, string id) {
+
+	}
+}
+;
+void testPaxos() {
+	zmq::context_t context(1);
+
+	vector<PaxosNode*> nodes;
+
+	for (int i = 0; i < 10; i++) {
+		PaxosNode* pn = new PaxosNode(&context);
+		pn->listen("inproc://node" + intToStr(i));
+		nodes.push_back(pn);
+	}
+
+	for (vector<PaxosNode*>::iterator it = nodes.begin(); it != nodes.end();
+			++it) {
+		for (vector<PaxosNode*>::iterator it2 = nodes.begin();
+				it2 != nodes.end(); ++it2) {
+			if ((*it)->getSocket() != (*it2)->getSocket()) {
+				(*it)->acceptors.push_back((*it2)->getSocket());
+			}
+		}
+	}
+
+	sleep(1);
+	pthread_exit(0);
+}
+
 int main(int argc, char* argv[]) {
 	srand(time(NULL));
 
 // Verify that the version of the library that we linked against is
 // compatible with the version of the headers we compiled against.
 	GOOGLE_PROTOBUF_VERIFY_VERSION;
-	testBootstrap();
+	testPaxos();
 
 	exit(0);
 }

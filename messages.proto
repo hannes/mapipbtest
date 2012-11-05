@@ -48,3 +48,15 @@ message NewNode {
 	required string node = 1;
 	required bool forward = 2;
 }
+
+message Prepare {
+}
+
+message Promise {
+}
+
+message AcceptRequest {
+}
+
+message Accepted {
+}
