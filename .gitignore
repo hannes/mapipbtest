@@ -4,3 +4,5 @@
 /TpcFile.o
 /Utils.o
 /protobuf
+/paxos
+/paxos.o
