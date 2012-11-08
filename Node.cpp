@@ -74,7 +74,7 @@ static void* poll(void* ctx) {
 					request.size());
 			t->receive(message);
 		} catch (zmq::error_t &e) {
-			FILE_LOG(logERROR) << "poll: " << e.what();
+			FILE_LOG(logERROR) << t->getSocket() << " poll: " << e.what();
 			break;
 		}
 
@@ -103,6 +103,7 @@ bool Node::send(string anAddress, google::protobuf::Message *msg, string id,
 	wrappedMsg.set_message_data(msg->SerializeAsString());
 	wrappedMsg.set_inresponseto(inResponseTo);
 	wrappedMsg.set_id(id);
+	wrappedMsg.set_origin(getSocket());
 
 	try {
 		if (sendSockets.find(anAddress) == sendSockets.end()) {
@@ -120,7 +121,7 @@ bool Node::send(string anAddress, google::protobuf::Message *msg, string id,
 		sendSockets[anAddress]->send(messageS);
 		return true;
 	} catch (zmq::error_t &e) {
-		FILE_LOG(logERROR) << "send: " << e.what();
+		FILE_LOG(logERROR) << serverSocketName << " send: " << e.what();
 	}
 	return false;
 }
@@ -131,9 +132,9 @@ void Node::receive(string msg) {
 	snappy::Uncompress(msg.data(), msg.size(), &decompressed);
 	dmessage.ParseFromString(decompressed);
 
-	// protobuf "magic", get inner class implementation:
+// protobuf "magic", get inner class implementation:
 
-	// first find the inner message's descriptor
+// first find the inner message's descriptor
 	const google::protobuf::Descriptor *d =
 			dmessage.descriptor()->file()->pool()->FindMessageTypeByName(
 					dmessage.type());
@@ -143,7 +144,7 @@ void Node::receive(string msg) {
 		return;
 	}
 
-	// now find the inner message's prototype
+// now find the inner message's prototype
 	const google::protobuf::Message *innerMsgProto =
 			::google::protobuf::MessageFactory::generated_factory()->GetPrototype(
 					d);
@@ -153,28 +154,28 @@ void Node::receive(string msg) {
 		return;
 	}
 
-	// now construct new instance and parse inner message
+// now construct new instance and parse inner message
 	google::protobuf::Message *innerMsg = innerMsgProto->New();
 
-	// finally, parse the inner message
+// finally, parse the inner message
 	innerMsg->ParseFromString(dmessage.message_data());
 
-	// check wether we have been waiting for this message
+// check wether we have been waiting for this message
 	if (waiting.find(dmessage.inresponseto()) != waiting.end()) {
 		waiting[dmessage.inresponseto()].handler->response(this, innerMsg,
-				dmessage.inresponseto());
+				dmessage.inresponseto(), dmessage.origin());
 		waiting.erase(dmessage.inresponseto());
 		return;
 	}
 
-	// look into handlers map to find suitable handler
+// look into handlers map to find suitable handler
 	if (handlers.find(dmessage.type()) != handlers.end()) {
 		MessageHandler *handler = handlers[dmessage.type()];
-		handler->handle(this, innerMsg, dmessage.id());
+		handler->handle(this, innerMsg, dmessage.id(), dmessage.origin());
 		return;
 	}
 
-	// if we still did not do anything
+// if we still did not do anything
 	FILE_LOG(logERROR) << serverSocketName << " unhandled message: "
 			<< dmessage.type();
 
@@ -223,14 +224,14 @@ bool Node::isOverloaded() {
 		mappings = +c->entries_size();
 	}
 	return (mappings > 100);
-	// TODO: storage or cpu load determine this!
-	// TODO: propose tree change, vote with other nodes?
+// TODO: storage or cpu load determine this!
+// TODO: propose tree change, vote with other nodes?
 
-	//return false;
+//return false;
 }
 
 void Node::addLingeringNode(string node) {
-	// check if we already have this one
+// check if we already have this one
 	for (vector<string>::iterator it = lingeringNodes.begin();
 			it != lingeringNodes.end(); ++it) {
 		if (*it == node) {

@@ -23,14 +23,14 @@ typedef google::protobuf::Message Msg;
 
 class MessageHandler {
 public:
-	virtual void handle(Node *node, google::protobuf::Message *msg,
-			string id) = 0;
+	virtual void handle(Node *node, google::protobuf::Message *msg, string id,
+			string origin) = 0;
 };
 
 class ResponseHandler {
 public:
 	virtual void response(Node *node, google::protobuf::Message *msg,
-			string inResponseTo) = 0;
+			string inResponseTo, string origin) = 0;
 	virtual void timeout(Node *node, string inResponseTo) = 0;
 };
 

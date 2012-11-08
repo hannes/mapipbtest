@@ -22,7 +22,8 @@ using namespace std;
 
 class HelloHandler: public MessageHandler {
 public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
+	void handle(Node *node, google::protobuf::Message *msg, string id,
+			string origin) {
 		sbp0i::Hello *m = (sbp0i::Hello*) msg;
 		FILE_LOG(logDEBUG) << node->getSocket() << " got hello from: "
 				<< m->origin() << " id:" << id;
@@ -35,7 +36,7 @@ public:
 class HelloRespHandler: public ResponseHandler {
 public:
 	void response(Node *node, google::protobuf::Message *msg,
-			string inResponseTo) {
+			string inResponseTo, string origin) {
 		FILE_LOG(logDEBUG) << node->getSocket() << " got response to "
 				<< inResponseTo;
 	}
@@ -47,7 +48,8 @@ public:
 
 class LoadColumnDataHandler: public MessageHandler, public ResponseHandler {
 public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
+	void handle(Node *node, google::protobuf::Message *msg, string id,
+			string origin) {
 		sbp0i::LoadColumnData *m = (sbp0i::LoadColumnData*) msg;
 
 		string prefix = getPrefix(m);
@@ -83,7 +85,7 @@ public:
 	}
 
 	void response(Node *node, google::protobuf::Message *msg,
-			string inResponseTo) {
+			string inResponseTo, string origin) {
 		sbp0i::StoreColumnData *m = (sbp0i::StoreColumnData*) msg;
 		FILE_LOG(logDEBUG) << node->getSocket() << " got response on "
 				<< inResponseTo << ", " << m->entries_size() << " entries.";
@@ -122,7 +124,8 @@ void testResponse() {
 
 class StoreColumnDataHandler: public MessageHandler {
 public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
+	void handle(Node *node, google::protobuf::Message *msg, string id,
+			string origin) {
 		sbp0i::StoreColumnData *m = (sbp0i::StoreColumnData*) msg;
 
 		string prefix = getPrefix(m);
@@ -226,7 +229,8 @@ public:
 
 class RoutingTableHandler: public MessageHandler {
 public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
+	void handle(Node *node, google::protobuf::Message *msg, string id,
+			string origin) {
 		sbp0i::RoutingTable *m = (sbp0i::RoutingTable*) msg;
 
 		FILE_LOG(logDEBUG) << node->getSocket()
@@ -241,7 +245,8 @@ public:
 
 class NewNodeHandler: public MessageHandler {
 public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
+	void handle(Node *node, google::protobuf::Message *msg, string id,
+			string origin) {
 		sbp0i::NewNode *m = (sbp0i::NewNode*) msg;
 		// add node to local list
 		node->addLingeringNode(m->node());
@@ -335,80 +340,13 @@ void testBootstrap() {
 	pthread_exit(0);
 }
 
-class PaxosNode: public Node {
-public:
-	PaxosNode(zmq::context_t *aContext) :
-			Node(aContext) {
-	}
-	vector<string> acceptors;
-
-private:
-	unsigned int proposalNr;
-};
-
-class PrepareHandler: public MessageHandler {
-public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
-
-	}
-}
-;
-
-class PromiseHandler: public MessageHandler {
-public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
-
-	}
-}
-;
-
-class AcceptRequestHandler: public MessageHandler {
-public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
-
-	}
-}
-;
-
-class AcceptHandler: public MessageHandler {
-public:
-	void handle(Node *node, google::protobuf::Message *msg, string id) {
-
-	}
-}
-;
-void testPaxos() {
-	zmq::context_t context(1);
-
-	vector<PaxosNode*> nodes;
-
-	for (int i = 0; i < 10; i++) {
-		PaxosNode* pn = new PaxosNode(&context);
-		pn->listen("inproc://node" + intToStr(i));
-		nodes.push_back(pn);
-	}
-
-	for (vector<PaxosNode*>::iterator it = nodes.begin(); it != nodes.end();
-			++it) {
-		for (vector<PaxosNode*>::iterator it2 = nodes.begin();
-				it2 != nodes.end(); ++it2) {
-			if ((*it)->getSocket() != (*it2)->getSocket()) {
-				(*it)->acceptors.push_back((*it2)->getSocket());
-			}
-		}
-	}
-
-	sleep(1);
-	pthread_exit(0);
-}
-
 int main(int argc, char* argv[]) {
 	srand(time(NULL));
 
 // Verify that the version of the library that we linked against is
 // compatible with the version of the headers we compiled against.
 	GOOGLE_PROTOBUF_VERIFY_VERSION;
-	testPaxos();
+	testBootstrap();
 
 	exit(0);
 }

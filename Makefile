@@ -2,7 +2,7 @@ CC      = g++
 PROTOC  = protoc
 
 CFLAGS  = -I. -I${CPLUS_INCLUDE_PATH} -Wall
-LDFLAGS = -L/export/scratch1/usr/lib -lprotobuf -lsnappy -lzmq -lpthread
+LDFLAGS = -L/export/scratch1/hannes/fakefs/lib -lprotobuf -lsnappy -lzmq -lpthread
 
 GENDIR = ./protobuf
 
@@ -10,13 +10,22 @@ GENDIR = ./protobuf
 # Make a directory unless it already exists
 maybe-mkdir = $(if $(wildcard $1),,mkdir -p $1)
 
-all: pb
+
+all: pb paxos
 
 pb: pb.o protobuf/messages.pb.o Node.o TpcFile.o Utils.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+	
+
+paxos: paxos.o protobuf/messages.pb.o Node.o TpcFile.o Utils.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
 pb.o: pb.cpp protobuf/messages.pb.h
 	$(CC) -c $(CFLAGS) $<
+
+paxos.o: paxos.cpp protobuf/messages.pb.h
+	$(CC) -c $(CFLAGS) $<
+	
 	
 %.o: %.cpp
 	$(CC) -c $(CFLAGS) $<
