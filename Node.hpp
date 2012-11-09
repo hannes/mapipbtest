@@ -53,6 +53,7 @@ public:
 	}
 	void listen(string anAddress);
 	void receive(string msg);
+	void terminate();
 
 	// Fire & Forget
 	bool send(string anAddress, Msg *msg);
@@ -70,20 +71,6 @@ public:
 
 	zmq::context_t* getContext();
 	map<string, Waiting>* getWaiting();
-	string findNode(string prefix);
-	void addRoutingEntry(string prefix, string node);
-	map<string, string> getRoutingTable();
-	sbp0i::RoutingTable* getRoutingMessage();
-	bool isOverloaded();
-
-	vector<string>* getLingeringNodes();
-
-	void addLingeringNode(string node);
-	void printRoutingTable();
-
-	void store(sbp0i::StoreColumnData *data);
-
-	sbp0i::StoreColumnData load(sbp0i::LoadColumnData *data);
 
 	~Node();
 
@@ -94,11 +81,31 @@ private:
 	zmq::context_t *context;
 	string serverSocketName;
 	map<string, zmq::socket_t*> sendSockets;
-	vector<string> lingeringNodes;
-	sbp0i::RoutingTable routingTable;
+
 	map<string, MessageHandler*> handlers;
 	map<string, Waiting> waiting;
 
+	bool sendToSocket(string target, string message);
+
+};
+
+class CezanneNode: public Node {
+public:
+	string findNode(string prefix);
+	void addRoutingEntry(string prefix, string node);
+	map<string, string> getRoutingTable();
+	sbp0i::RoutingTable* getRoutingMessage();
+	bool isOverloaded();
+	vector<string>* getLingeringNodes();
+	void addLingeringNode(string node);
+	void printRoutingTable();
+
+	void store(sbp0i::StoreColumnData *data);
+	sbp0i::StoreColumnData load(sbp0i::LoadColumnData *data);
+
+private:
+	vector<string> lingeringNodes;
+	sbp0i::RoutingTable routingTable;
 	vector<sbp0i::StoreColumnData*> nodeData;
 };
 

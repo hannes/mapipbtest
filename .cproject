@@ -24,7 +24,9 @@
 							<tool id="cdt.managedbuild.tool.gnu.archiver.base.1653618985" name="GCC Archiver" superClass="cdt.managedbuild.tool.gnu.archiver.base"/>
 							<tool id="cdt.managedbuild.tool.gnu.cpp.compiler.base.1899718963" name="GCC C++ Compiler" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.base">
 								<option id="gnu.cpp.compiler.option.include.paths.102809697" name="Include paths (-I)" superClass="gnu.cpp.compiler.option.include.paths" valueType="includePath">
-									<listOptionValue builtIn="false" value="/export/scratch1/usr/include/"/>
+									<listOptionValue builtIn="false" value="/export/scratch1/hannes/fakefs/usr/include/"/>
+									<listOptionValue builtIn="false" value="/export/scratch1/hannes/libs/gtest-1.6.0/include"/>
+									<listOptionValue builtIn="false" value="/export/scratch1/hannes/fakefs/include/"/>
 								</option>
 								<option id="gnu.cpp.compiler.option.optimization.level.1230429306" name="Optimization Level" superClass="gnu.cpp.compiler.option.optimization.level" value="gnu.cpp.compiler.optimization.level.none" valueType="enumerated"/>
 								<option id="gnu.cpp.compiler.option.debugging.level.1035369892" name="Debug Level" superClass="gnu.cpp.compiler.option.debugging.level" value="gnu.cpp.compiler.debugging.level.max" valueType="enumerated"/>
@@ -116,6 +118,8 @@
 									<listOptionValue builtIn="false" value="/usr/include/linux/"/>
 									<listOptionValue builtIn="false" value="&quot;${workspace_loc:/SnappyBotoPuf0MQIntegration/lib}&quot;"/>
 									<listOptionValue builtIn="false" value="/export/scratch1/usr/include/"/>
+									<listOptionValue builtIn="false" value="/export/scratch1/hannes/libs/gtest-1.6.0/include"/>
+									<listOptionValue builtIn="false" value="/export/scratch1/hannes/fakefs/include/"/>
 								</option>
 								<inputType id="cdt.managedbuild.tool.gnu.cpp.compiler.input.429567976" superClass="cdt.managedbuild.tool.gnu.cpp.compiler.input"/>
 							</tool>

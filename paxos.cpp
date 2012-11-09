@@ -75,7 +75,6 @@ public:
 
 };
 
-
 class AcceptHandler: public ResponseHandler {
 public:
 	void response(Node *node, google::protobuf::Message *msg,
@@ -248,4 +247,3 @@ int main(int argc, char* argv[]) {
 
 	exit(0);
 }
-

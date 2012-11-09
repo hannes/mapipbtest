@@ -1,5 +1,9 @@
 package sbp0i;
 
+message TestMessage {
+	required string message = 1;
+}
+
 message Hello {
 	required string origin = 1;
 }

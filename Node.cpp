@@ -4,7 +4,7 @@ void Node::registerHandler(string messageType, MessageHandler *handler) {
 	handlers[messageType] = handler;
 }
 
-void Node::printRoutingTable() {
+void CezanneNode::printRoutingTable() {
 	cout << endl;
 	cout << "Routing table for:  " << getSocket() << endl;
 
@@ -72,7 +72,15 @@ static void* poll(void* ctx) {
 
 			string message = string(static_cast<char*>(request.data()),
 					request.size());
-			t->receive(message);
+			string decompressed;
+			snappy::Uncompress(message.data(), message.size(), &decompressed);
+
+			if (decompressed == "TERMINATE") {
+				FILE_LOG(logERROR) << t->getSocket() << " terminating";
+				break;
+			}
+
+			t->receive(decompressed);
 		} catch (zmq::error_t &e) {
 			FILE_LOG(logERROR) << t->getSocket() << " poll: " << e.what();
 			break;
@@ -85,6 +93,10 @@ static void* poll(void* ctx) {
 void Node::listen(string anAddress) {
 	serverSocketName = anAddress;
 	pthread_create(&pollert, NULL, poll, &this[0]);
+}
+
+void Node::terminate() {
+	sendToSocket(getSocket(), "TERMINATE");
 }
 
 bool Node::send(string anAddress, google::protobuf::Message *msg) {
@@ -104,21 +116,23 @@ bool Node::send(string anAddress, google::protobuf::Message *msg, string id,
 	wrappedMsg.set_inresponseto(inResponseTo);
 	wrappedMsg.set_id(id);
 	wrappedMsg.set_origin(getSocket());
+	return sendToSocket(anAddress, wrappedMsg.SerializeAsString());
+}
 
+bool Node::sendToSocket(string target, string message) {
 	try {
-		if (sendSockets.find(anAddress) == sendSockets.end()) {
+		if (sendSockets.find(target) == sendSockets.end()) {
 			zmq::socket_t *socket = new zmq::socket_t(*context, ZMQ_PUSH);
-			socket->connect(anAddress.data());
-			sendSockets[anAddress] = socket;
+			socket->connect(target.data());
+			sendSockets[target] = socket;
 		}
 
-		string serialized = wrappedMsg.SerializeAsString();
 		string compressed;
-		snappy::Compress(serialized.data(), serialized.size(), &compressed);
+		snappy::Compress(message.data(), message.size(), &compressed);
 		zmq::message_t messageS(compressed.size());
 		memcpy(messageS.data(), compressed.data(), compressed.size());
 
-		sendSockets[anAddress]->send(messageS);
+		sendSockets[target]->send(messageS);
 		return true;
 	} catch (zmq::error_t &e) {
 		FILE_LOG(logERROR) << serverSocketName << " send: " << e.what();
@@ -128,9 +142,7 @@ bool Node::send(string anAddress, google::protobuf::Message *msg, string id,
 
 void Node::receive(string msg) {
 	sbp0i::SelfDescribingMessage dmessage;
-	string decompressed;
-	snappy::Uncompress(msg.data(), msg.size(), &decompressed);
-	dmessage.ParseFromString(decompressed);
+	dmessage.ParseFromString(msg);
 
 // protobuf "magic", get inner class implementation:
 
@@ -185,7 +197,31 @@ string Node::createMessageId() {
 	return genRndStr(10);
 }
 
-string Node::findNode(string prefix) {
+string Node::getSocket() {
+	return serverSocketName;
+}
+
+map<string, Waiting>* Node::getWaiting() {
+	return &waiting;
+}
+
+zmq::context_t * Node::getContext() {
+	return context;
+}
+
+Node::~Node() {
+	typedef map<string, zmq::socket_t*>::iterator it_type;
+	for (it_type iterator = sendSockets.begin(); iterator != sendSockets.end();
+			iterator++) {
+		try {
+			iterator->second->~socket_t();
+		} catch (zmq::error_t &e) {
+			FILE_LOG(logERROR) << "destruct: " << e.what();
+		}
+	}
+}
+
+string CezanneNode::findNode(string prefix) {
 	for (int j = 0; j < routingTable.entries_size(); j++) {
 		const sbp0i::RoutingTable_RoutingTableEntry& entry =
 				routingTable.entries(j);
@@ -195,14 +231,14 @@ string Node::findNode(string prefix) {
 	}
 	return "";
 }
-void Node::addRoutingEntry(string prefix, string node) {
+void CezanneNode::addRoutingEntry(string prefix, string node) {
 	sbp0i::RoutingTable_RoutingTableEntry* ne = routingTable.add_entries();
 	ne->set_prefix(prefix);
 	ne->set_node(node);
 	routingTable.set_version(routingTable.version() + 1);
 }
 
-map<string, string> Node::getRoutingTable() {
+map<string, string> CezanneNode::getRoutingTable() {
 	map<string, string> routingTableMap;
 	for (int j = 0; j < routingTable.entries_size(); j++) {
 		const sbp0i::RoutingTable_RoutingTableEntry& entry =
@@ -212,11 +248,11 @@ map<string, string> Node::getRoutingTable() {
 	return routingTableMap;
 }
 
-sbp0i::RoutingTable* Node::getRoutingMessage() {
+sbp0i::RoutingTable* CezanneNode::getRoutingMessage() {
 	return &routingTable;
 }
 
-bool Node::isOverloaded() {
+bool CezanneNode::isOverloaded() {
 	long mappings = 0;
 	for (vector<sbp0i::StoreColumnData*>::size_type i = 0; i < nodeData.size();
 			i++) {
@@ -230,7 +266,7 @@ bool Node::isOverloaded() {
 //return false;
 }
 
-void Node::addLingeringNode(string node) {
+void CezanneNode::addLingeringNode(string node) {
 // check if we already have this one
 	for (vector<string>::iterator it = lingeringNodes.begin();
 			it != lingeringNodes.end(); ++it) {
@@ -241,11 +277,11 @@ void Node::addLingeringNode(string node) {
 	lingeringNodes.push_back(node);
 }
 
-vector<string>* Node::getLingeringNodes() {
+vector<string>* CezanneNode::getLingeringNodes() {
 	return &lingeringNodes;
 }
 
-void Node::store(sbp0i::StoreColumnData *data) {
+void CezanneNode::store(sbp0i::StoreColumnData *data) {
 	sbp0i::StoreColumnData *col = 0;
 	for (vector<sbp0i::StoreColumnData*>::size_type i = 0; i != nodeData.size();
 			i++) {
@@ -270,7 +306,7 @@ void Node::store(sbp0i::StoreColumnData *data) {
 	}
 }
 
-sbp0i::StoreColumnData Node::load(sbp0i::LoadColumnData *req) {
+sbp0i::StoreColumnData CezanneNode::load(sbp0i::LoadColumnData *req) {
 	sbp0i::StoreColumnData *col = 0;
 	for (vector<sbp0i::StoreColumnData*>::size_type i = 0; i != nodeData.size();
 			i++) {
@@ -294,29 +330,5 @@ sbp0i::StoreColumnData Node::load(sbp0i::LoadColumnData *req) {
 		}
 	}
 	return ret;
-}
-
-string Node::getSocket() {
-	return serverSocketName;
-}
-
-map<string, Waiting>* Node::getWaiting() {
-	return &waiting;
-}
-
-zmq::context_t * Node::getContext() {
-	return context;
-}
-
-Node::~Node() {
-	typedef map<string, zmq::socket_t*>::iterator it_type;
-	for (it_type iterator = sendSockets.begin(); iterator != sendSockets.end();
-			iterator++) {
-		try {
-			iterator->second->~socket_t();
-		} catch (zmq::error_t &e) {
-			FILE_LOG(logERROR) << "destruct: " << e.what();
-		}
-	}
 }
 
