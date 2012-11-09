@@ -63,6 +63,16 @@
 							</tool>
 						</toolChain>
 					</folderInfo>
+					<fileInfo id="cdt.managedbuild.config.gnu.macosx.exe.debug.960987548.1745904989" name="Node_unittest.o" rcbsApplicability="disable" resourcePath="Node_unittest.o" toolsToInvoke="cdt.managedbuild.tool.gnu.cpp.linker.base.575831902.1312814866">
+						<tool id="cdt.managedbuild.tool.gnu.cpp.linker.base.575831902.1312814866" name="GCC C++ Linker" superClass="cdt.managedbuild.tool.gnu.cpp.linker.base.575831902">
+							<inputType id="cdt.managedbuild.tool.gnu.cpp.linker.input.576760665" superClass="cdt.managedbuild.tool.gnu.cpp.linker.input">
+								<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+								<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+								<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
+								<additionalInput kind="additionalinput" paths="$(LIBS)"/>
+							</inputType>
+						</tool>
+					</fileInfo>
 					<sourceEntries>
 						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name=""/>
 					</sourceEntries>

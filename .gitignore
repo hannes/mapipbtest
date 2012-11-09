@@ -6,3 +6,8 @@
 /protobuf
 /paxos
 /paxos.o
+/gtest_main.a
+/gtest_main.o
+/gtest-all.o
+/Node_unittest
+/Node_unittest.o
