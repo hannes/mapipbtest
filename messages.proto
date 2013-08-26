@@ -1,74 +1,28 @@
-package sbp0i;
+package mapipbtest;
 
-message TestMessage {
-	required string message = 1;
+message ExecuteQuery {
+	required string sqlQuery = 1;
 }
 
-message Hello {
-	required string origin = 1;
-}
+message QueryResult {
+	required int64 rows = 1;
+	message Column {
+		required string name = 1;
+		enum Type {
+			STRING = 1;
+			INTEGER = 2;
+			FLOAT = 3;
+			BOOLEAN = 4;
+			// more types added here...
+		}
 
-message RoutingTable {
-	required int32 version = 1;
-	message RoutingTableEntry {
-		required string prefix = 1;
-		required string node = 2;
+		required Type type = 2;
+		repeated string stringValues = 10;
+		repeated int64 intValues = 11;
+		repeated double floatValues = 12;
+		repeated double boolValues = 13;
 	}
 
-	repeated RoutingTableEntry entries = 2;
+	repeated Column columns = 3;
 }
 
-message StoreColumnData {
-	required string relation = 1;
-	required string column = 2;
-	message ColumnEntry {
-		required string rowid = 1;
-		required string value = 2;
-	}
-
-	repeated ColumnEntry entries = 3;
-	optional bool force = 4;
-}
-
-message LoadColumnData {
-	required string origin = 1;
-	required string relation = 2;
-	required string column = 3;
-	optional string value = 4;
-}
-
-message SelfDescribingMessage {
-	required string type = 1;
-	required bytes message_data = 2;
-	required string origin = 3;
-	optional string id = 4;
-	optional string inResponseTo = 5;
-}
-
-message ResourceRequest {
-	required string origin = 1;
-}
-
-message NewNode {
-	required string node = 1;
-	required bool forward = 2;
-}
-
-message Prepare {
-	required uint32 proposalNumber = 1;
-}
-
-message Promise {
-	optional uint32 proposalNumber = 1;
-	optional string value = 2;
-}
-
-message AcceptRequest {
-	required uint32 proposalNumber = 1;
-	required string value = 2;
-}
-
-message Accepted {
-	required uint32 proposalNumber = 1;
-	required string value = 2;
-}
